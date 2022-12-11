@@ -43,7 +43,7 @@ public class TrackGenerator : MonoBehaviour
         };
 
         // Modify track
-        GenerateTrack(tiles);
+        GenerateTrack(ref tiles);
 
         // Destroy previous track
         Clear();
@@ -52,9 +52,69 @@ public class TrackGenerator : MonoBehaviour
         SpawnPrefabs(tiles);
     }
 
-    void GenerateTrack(TileType[,] tiles)
+    void GenerateTrack(ref TileType[,] tiles)
     {
         // TODO do something cool here
+
+        int rowInsertCount = UnityEngine.Random.Range(0, 4);
+        for (int i = 0; i < rowInsertCount; i++)
+        {
+            Debug.LogFormat("Insert row at index {0}", 1);
+            InsertRow(ref tiles, 1);
+        }
+
+        int columnInsertCount = UnityEngine.Random.Range(0, 4);
+        for (int i = 0; i < columnInsertCount; i++)
+        {
+            Debug.LogFormat("Insert column at index {0}", 1);
+            InsertColumn(ref tiles, 1);
+        }
+    }
+
+    void InsertRow(ref TileType[,] tiles, int rowIndex)
+    {
+        // Validate if insertion at row index is possible
+        bool valid = true;
+        for (int x = 0; x < tiles.GetLength(1); x++)
+            valid &= tiles[rowIndex, x] == TileType.None || tiles[rowIndex, x] == TileType.StraightNS;
+
+        if(!valid)
+        {
+            Debug.LogFormat("ERROR: Row {0} is invalid for insertion. Only StraightNS and None tiles are allowed!", rowIndex);
+            return;
+        }
+
+        TileType[,] newTiles = new TileType[tiles.GetLength(0) + 1, tiles.GetLength(1)];
+        for (int z = 0; z < newTiles.GetLength(0); z++)
+        {
+            int copyFromRow = (z > rowIndex) ? z - 1 : z;
+            for (int x = 0; x < newTiles.GetLength(1); x++)
+                newTiles[z, x] = tiles[copyFromRow, x];
+        }
+        tiles = newTiles;
+    }
+
+    void InsertColumn(ref TileType[,] tiles, int columnIndex)
+    {
+        // Validate if insertion at column index is possible
+        bool valid = true;
+        for (int z = 0; z < tiles.GetLength(0); z++)
+            valid &= tiles[z, columnIndex] == TileType.None || tiles[z, columnIndex] == TileType.StraightEW;
+
+        if(!valid)
+        {
+            Debug.LogFormat("ERROR: Column {0} is invalid for insertion. Only StraightEW and None tiles are allowed!", columnIndex);
+            return;
+        }
+
+        TileType[,] newTiles = new TileType[tiles.GetLength(0), tiles.GetLength(1) + 1];
+        for (int x = 0; x < newTiles.GetLength(1); x++)
+        {
+            int copyFromColumn = (x > columnIndex) ? x - 1 : x;
+            for (int z = 0; z < newTiles.GetLength(0); z++)
+                newTiles[z, x] = tiles[z, copyFromColumn];
+        }
+        tiles = newTiles;
     }
 
     void SpawnPrefabs(TileType[,] tiles)
