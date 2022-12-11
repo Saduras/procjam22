@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 enum TileType
@@ -12,19 +13,42 @@ enum TileType
     CornerNW,
 }
 
+enum Direction
+{
+    North,
+    East,
+    South,
+    West,
+}
+
+struct Connector
+{
+    public int x;
+    public int z;
+    public Direction direction;
+
+    public Connector(int x, int z, Direction direction)
+    {
+        this.x = x;
+        this.z = z;
+        this.direction = direction;
+    }
+}
+
 public class TrackGenerator : MonoBehaviour
 {
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        Generate();
-    }
+    TileType[,] roadTiles;
+
+    public int scanX = 0;
+    public int scanZ = 0;
+    public int scanSize = 2;
+
     public void Clear()
     {
-        if(Application.isPlaying)
+        if (Application.isPlaying)
             foreach (Transform childTransform in this.transform)
                 Destroy(childTransform.gameObject);
         else
@@ -36,20 +60,20 @@ public class TrackGenerator : MonoBehaviour
     public void Generate()
     {
         // Start track
-        TileType[,] tiles = new TileType[,]{
+        roadTiles = new TileType[,]{
             {TileType.CornerSE, TileType.StraightEW, TileType.CornerSW },
             {TileType.StraightNS, TileType.None, TileType.StraightNS },
             {TileType.CornerNE, TileType.StraightEW, TileType.CornerNW },
         };
 
         // Modify track
-        GenerateTrack(ref tiles);
+        GenerateTrack(ref roadTiles);
 
         // Destroy previous track
         Clear();
 
         // Spawn new track
-        SpawnPrefabs(tiles);
+        SpawnPrefabs(roadTiles);
     }
 
     void GenerateTrack(ref TileType[,] tiles)
@@ -78,7 +102,7 @@ public class TrackGenerator : MonoBehaviour
         for (int x = 0; x < tiles.GetLength(1); x++)
             valid &= tiles[rowIndex, x] == TileType.None || tiles[rowIndex, x] == TileType.StraightNS;
 
-        if(!valid)
+        if (!valid)
         {
             Debug.LogFormat("ERROR: Row {0} is invalid for insertion. Only StraightNS and None tiles are allowed!", rowIndex);
             return;
@@ -101,7 +125,7 @@ public class TrackGenerator : MonoBehaviour
         for (int z = 0; z < tiles.GetLength(0); z++)
             valid &= tiles[z, columnIndex] == TileType.None || tiles[z, columnIndex] == TileType.StraightEW;
 
-        if(!valid)
+        if (!valid)
         {
             Debug.LogFormat("ERROR: Column {0} is invalid for insertion. Only StraightEW and None tiles are allowed!", columnIndex);
             return;
@@ -115,6 +139,49 @@ public class TrackGenerator : MonoBehaviour
                 newTiles[z, x] = tiles[z, copyFromColumn];
         }
         tiles = newTiles;
+    }
+
+    Connector[] ScanForConnectors(TileType[,] tiles, int scan_x, int scan_z, int scan_size)
+    {
+        if(scan_x + scan_size > tiles.GetLength(1) || scan_z + scan_size > tiles.GetLength(0)
+         || scan_x < 0 || scan_z < 0)
+            throw new IndexOutOfRangeException("Scan area is outside tile map!");
+
+        List<Connector> entries = new List<Connector>();
+
+        // Check north edge
+        for (int x = scan_x; x < scan_x + scan_size; x++)
+        {
+            TileType tile = tiles[scan_z, x];
+            if(tile == TileType.StraightNS || tile == TileType.CornerNE || tile == TileType.CornerNW)
+                entries.Add(new Connector(x, scan_z, Direction.North));
+        }
+
+        // Check south edge
+        for (int x = scan_x; x < scan_x + scan_size; x++)
+        {
+            TileType tile = tiles[scan_z + scan_size - 1, x];
+            if(tile == TileType.StraightNS || tile == TileType.CornerSE || tile == TileType.CornerSW)
+                entries.Add(new Connector(x, scan_z + scan_size - 1, Direction.South));
+        }
+
+        // Check east edge
+        for (int z = scan_z; z < scan_z + scan_size; z++)
+        {
+            TileType tile = tiles[z, scan_x + scan_size - 1];
+            if(tile == TileType.StraightEW || tile == TileType.CornerSE || tile == TileType.CornerNE)
+                entries.Add(new Connector(scan_x + scan_size - 1, z, Direction.East));
+        }
+
+        // Check west edge
+        for (int z = scan_z; z < scan_z + scan_size; z++)
+        {
+            TileType tile = tiles[z, scan_x];
+            if(tile == TileType.StraightEW || tile == TileType.CornerSW || tile == TileType.CornerNW)
+                entries.Add(new Connector(scan_x, z, Direction.West));
+        }
+
+        return entries.ToArray();
     }
 
     void SpawnPrefabs(TileType[,] tiles)
@@ -158,5 +225,42 @@ public class TrackGenerator : MonoBehaviour
                         throw new ArgumentException(string.Format("Unsupported tile type {0}", tile));
                 }
             }
+    }
+
+    void OnDrawGizmos()
+    {
+        if(roadTiles == null)
+            return;
+
+        float gridSize = 10.0f;
+
+        Gizmos.color = Color.yellow;
+
+        for (int x = 0; x < scanSize; x++)
+            for (int z = 0; z < scanSize; z++)
+                Gizmos.DrawWireCube(new Vector3(gridSize * (scanX + x), 0.0f, -gridSize * (scanZ + z)), new Vector3(gridSize, 0.5f, gridSize));
+
+        Connector[] connectors = ScanForConnectors(roadTiles, scanX, scanZ, scanSize);
+        foreach (var connector in connectors)
+        {
+            float offsetX = 0;
+            float offsetZ = 0;
+            switch (connector.direction)
+            {
+                case Direction.North:
+                    offsetZ = -0.5f;
+                    break;
+                case Direction.East:
+                    offsetX = 0.5f;
+                    break;
+                case Direction.South:
+                    offsetZ = 0.5f;
+                    break;
+                case Direction.West:
+                    offsetX = -0.5f;
+                    break;
+            }
+            Gizmos.DrawWireSphere(new Vector3(gridSize * (connector.x + offsetX), 0.0f, -gridSize * (connector.z + offsetZ)), 1.0f);
+        }
     }
 }
