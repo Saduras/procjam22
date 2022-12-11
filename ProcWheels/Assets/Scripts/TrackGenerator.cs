@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using System;
 using UnityEngine;
 
@@ -24,8 +22,18 @@ public class TrackGenerator : MonoBehaviour
     {
         Generate();
     }
+    public void Clear()
+    {
+        if(Application.isPlaying)
+            foreach (Transform childTransform in this.transform)
+                Destroy(childTransform.gameObject);
+        else
+            // Source: https://stackoverflow.com/questions/38120084/how-can-we-destroy-child-objects-in-edit-modeunity3d
+            for (int i = this.transform.childCount; i > 0; --i)
+                DestroyImmediate(this.transform.GetChild(0).gameObject);
+    }
 
-    void Generate()
+    public void Generate()
     {
         // Start track
         TileType[,] tiles = new TileType[,]{
@@ -38,8 +46,7 @@ public class TrackGenerator : MonoBehaviour
         GenerateTrack(tiles);
 
         // Destroy previous track
-        foreach (Transform childTransform in this.transform)
-            GameObject.Destroy(childTransform.gameObject);
+        Clear();
 
         // Spawn new track
         SpawnPrefabs(tiles);
