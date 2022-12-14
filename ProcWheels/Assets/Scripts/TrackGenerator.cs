@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 enum TileType
@@ -15,6 +16,7 @@ enum TileType
 
 enum Direction
 {
+    Unset,
     North,
     East,
     South,
@@ -35,12 +37,35 @@ struct Connector
     }
 }
 
+struct Point
+{
+    public int x;
+    public int z;
+    
+    public Point(int x, int z)
+    {
+        this.x = x;
+        this.z = z;
+    }
+
+    public override bool Equals(object o) => o is Point && this == (Point)o;
+    public override int GetHashCode() => x.GetHashCode() ^ z.GetHashCode();
+    public static bool operator ==(Point lhs, Point rhs) => lhs.x == rhs.x && lhs.z == rhs.z;
+    public static bool operator !=(Point lhs, Point rhs) => !(lhs == rhs);
+
+    public override string ToString()
+    {
+        return String.Format("({0}, {1})", x, z);
+    }
+}
+
 public class TrackGenerator : MonoBehaviour
 {
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
 
     TileType[,] roadTiles;
+    List<Point[]> debugPaths;
 
     public int scanX = 0;
     public int scanZ = 0;
@@ -69,6 +94,12 @@ public class TrackGenerator : MonoBehaviour
         // Modify track
         GenerateTrack(ref roadTiles);
 
+        Connector[] connectors = ScanForConnectors(roadTiles, scanX, scanZ, scanSize);
+        // To Local space
+        for (int i = 0; i < connectors.Length; i++)
+            connectors[i] = new Connector(connectors[i].x - scanX, connectors[i].z - scanZ, connectors[i].direction);
+        GenerateRoad(scanSize, connectors);
+
         // Destroy previous track
         Clear();
 
@@ -83,14 +114,14 @@ public class TrackGenerator : MonoBehaviour
         int rowInsertCount = UnityEngine.Random.Range(0, 4);
         for (int i = 0; i < rowInsertCount; i++)
         {
-            Debug.LogFormat("Insert row at index {0}", 1);
+            // Debug.LogFormat("Insert row at index {0}", 1);
             InsertRow(ref tiles, 1);
         }
 
         int columnInsertCount = UnityEngine.Random.Range(0, 4);
         for (int i = 0; i < columnInsertCount; i++)
         {
-            Debug.LogFormat("Insert column at index {0}", 1);
+            // Debug.LogFormat("Insert column at index {0}", 1);
             InsertColumn(ref tiles, 1);
         }
     }
@@ -184,6 +215,92 @@ public class TrackGenerator : MonoBehaviour
         return entries.ToArray();
     }
 
+    TileType[,] GenerateRoad(int patchSize, Connector[] connectors)
+    {
+        TileType[,] road = new TileType[patchSize,patchSize];
+
+        if(connectors.Length != 2)
+            throw new ArgumentException("Only two connectors are supported!");
+
+        Direction[,,] tiles = new Direction[2,2,2];
+
+        List<Point[]> paths = new List<Point[]>();
+        FindPath(new Point(connectors[0].x, connectors[0].z), 
+                null,
+                new Point(connectors[1].x, connectors[1].z), 
+                patchSize, 
+                ref paths);
+
+        debugPaths = paths;
+
+        foreach (var path in paths)
+            Debug.LogFormat("Path: {0}", string.Join(",", path.Select(x => x.ToString()).ToArray()));
+
+        return road;
+    }
+
+    Point Move(Point p, Direction d)
+    {
+        switch(d)
+        {
+            case Direction.North: return new Point(p.x, p.z - 1);
+            case Direction.South: return new Point(p.x, p.z + 1);
+            case Direction.West: return new Point(p.x - 1, p.z);
+            case Direction.East: return new Point(p.x + 1, p.z);
+            default: throw new ArgumentException(String.Format("Invalid direction: {0}", d));
+        }
+    }
+
+    Direction Mirror(Direction d)
+    {
+        switch(d)
+        {
+            case Direction.North: return Direction.South;
+            case Direction.South: return Direction.North;
+            case Direction.West: return Direction.East;
+            case Direction.East: return Direction.West;
+            case Direction.Unset: return Direction.Unset;
+            default: throw new ArgumentException(String.Format("Invalid direction: {0}", d));
+        }
+    }
+
+    void FindPath(Point current, List<Point> currentPath, Point goal, int size, ref List<Point[]> results)
+    {
+        Debug.LogFormat("{0} {1} {2}", current, currentPath, goal);
+
+        // Reach goal point
+        if(current == goal)
+        {
+            results.Add(currentPath.ToArray());
+            return;
+        }
+
+        if(currentPath is null)
+            currentPath = new List<Point>{current};
+
+        foreach (Direction direction in Enum.GetValues(typeof(Direction)))
+        {
+            if(direction == Direction.Unset)
+                continue;
+
+            Debug.LogFormat("Trying direction {0}", direction);
+
+            Point newPoint = Move(current, direction);
+
+            // Check if out of bounds
+            if(newPoint.x < 0 || newPoint.x >= size || newPoint.z < 0 || newPoint.z >= size)
+                continue;
+
+            // Don't walk in cycles
+            if(currentPath.Contains(newPoint))
+                continue;
+
+            List<Point> newPath = new List<Point>(currentPath);
+            newPath.Add(newPoint);
+            FindPath(newPoint, newPath, goal, size, ref results);
+        }
+    }
+
     void SpawnPrefabs(TileType[,] tiles)
     {
         float gridSize = 10.0f;
@@ -240,6 +357,8 @@ public class TrackGenerator : MonoBehaviour
             for (int z = 0; z < scanSize; z++)
                 Gizmos.DrawWireCube(new Vector3(gridSize * (scanX + x), 0.0f, -gridSize * (scanZ + z)), new Vector3(gridSize, 0.5f, gridSize));
 
+        float yOffset = 0.5f;
+        Gizmos.color = Color.red;
         Connector[] connectors = ScanForConnectors(roadTiles, scanX, scanZ, scanSize);
         foreach (var connector in connectors)
         {
@@ -260,7 +379,22 @@ public class TrackGenerator : MonoBehaviour
                     offsetX = -0.5f;
                     break;
             }
-            Gizmos.DrawWireSphere(new Vector3(gridSize * (connector.x + offsetX), 0.0f, -gridSize * (connector.z + offsetZ)), 1.0f);
+            Gizmos.DrawWireSphere(new Vector3(gridSize * (connector.x + offsetX), yOffset, -gridSize * (connector.z + offsetZ)), 1.0f);
+            Gizmos.DrawLine(new Vector3(gridSize * (connector.x + offsetX), yOffset , -gridSize * (connector.z + offsetZ)), new Vector3(gridSize * (connector.x), yOffset, -gridSize * (connector.z)));
         }
+
+        if(debugPaths is not null)
+        {
+            var points = debugPaths[0];
+            for (int i = 0; i < points.Length; i++)
+            {
+                Gizmos.DrawWireSphere(new Vector3(gridSize * (points[i].x + scanX), yOffset, -gridSize * (points[i].z + scanZ)), 1.0f);
+                if(i > 0)
+                {
+                    Gizmos.DrawLine(new Vector3(gridSize * (points[i].x + scanX), yOffset, -gridSize * (points[i].z + scanZ)), new Vector3(gridSize * (points[i-1].x + scanX), yOffset, -gridSize * (points[i-1].z + scanZ)));
+                }
+            }
+        }
+
     }
 }
