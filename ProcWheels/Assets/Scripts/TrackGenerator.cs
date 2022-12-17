@@ -7,7 +7,7 @@ enum TileType
 {
     None,
     StraightNS,
-    StraightEW,
+    StraightWE,
     CornerSE,
     CornerSW,
     CornerNE,
@@ -18,9 +18,9 @@ enum Direction
 {
     Unset,
     North,
+    West,
     East,
     South,
-    West,
 }
 
 struct Connector
@@ -41,7 +41,7 @@ struct Point
 {
     public int x;
     public int z;
-    
+
     public Point(int x, int z)
     {
         this.x = x;
@@ -59,13 +59,31 @@ struct Point
     }
 }
 
+struct PathStep
+{
+    public Point point;
+    public Direction entry;
+
+    public PathStep(Point point, Direction entry)
+    {
+        this.point = point;
+        this.entry = entry;
+    }
+
+    public override string ToString()
+    {
+        return String.Format("{0} {1}", point, entry);
+    }
+}
+
 public class TrackGenerator : MonoBehaviour
 {
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
 
     TileType[,] roadTiles;
-    List<Point[]> debugPaths;
+    List<PathStep[]> debugPaths;
+    Connector[] debugConnectors;
 
     public int scanX = 0;
     public int scanZ = 0;
@@ -86,19 +104,20 @@ public class TrackGenerator : MonoBehaviour
     {
         // Start track
         roadTiles = new TileType[,]{
-            {TileType.CornerSE, TileType.StraightEW, TileType.CornerSW },
+            {TileType.CornerSE, TileType.StraightWE, TileType.CornerSW },
             {TileType.StraightNS, TileType.None, TileType.StraightNS },
-            {TileType.CornerNE, TileType.StraightEW, TileType.CornerNW },
+            {TileType.CornerNE, TileType.StraightWE, TileType.CornerNW },
         };
 
-        // Modify track
-        GenerateTrack(ref roadTiles);
-
-        Connector[] connectors = ScanForConnectors(roadTiles, scanX, scanZ, scanSize);
-        // To Local space
-        for (int i = 0; i < connectors.Length; i++)
-            connectors[i] = new Connector(connectors[i].x - scanX, connectors[i].z - scanZ, connectors[i].direction);
-        GenerateRoad(scanSize, connectors);
+        try
+        {
+            // Modify track
+            GenerateTrack(ref roadTiles);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError(e.Message);
+        }
 
         // Destroy previous track
         Clear();
@@ -107,22 +126,119 @@ public class TrackGenerator : MonoBehaviour
         SpawnPrefabs(roadTiles);
     }
 
+    static TileType GetTileFromDirections(Direction direction1, Direction direction2)
+    {
+        switch (direction1)
+        {
+            case Direction.North:
+                switch (direction2)
+                {
+                    case Direction.West: return TileType.CornerNW;
+                    case Direction.East: return TileType.CornerNE;
+                    case Direction.South: return TileType.StraightNS;
+                }
+                break;
+            case Direction.West:
+                switch (direction2)
+                {
+                    case Direction.North: return TileType.CornerNW;
+                    case Direction.East: return TileType.StraightWE;
+                    case Direction.South: return TileType.CornerSW;
+                }
+                break;
+            case Direction.East:
+                switch (direction2)
+                {
+                    case Direction.North: return TileType.CornerNE;
+                    case Direction.West: return TileType.StraightWE;
+                    case Direction.South: return TileType.CornerSE;
+                }
+                break;
+            case Direction.South:
+                switch (direction2)
+                {
+                    case Direction.North: return TileType.StraightNS;
+                    case Direction.West: return TileType.CornerSW;
+                    case Direction.East: return TileType.CornerSE;
+                }
+                break;
+        }
+
+        // Invalid combination of directions
+        return TileType.None;
+    }
+
     void GenerateTrack(ref TileType[,] tiles)
     {
         // TODO do something cool here
 
-        int rowInsertCount = UnityEngine.Random.Range(0, 4);
+        int rowInsertCount = 3;// UnityEngine.Random.Range(0, 4);
         for (int i = 0; i < rowInsertCount; i++)
         {
             // Debug.LogFormat("Insert row at index {0}", 1);
             InsertRow(ref tiles, 1);
         }
 
-        int columnInsertCount = UnityEngine.Random.Range(0, 4);
+        int columnInsertCount = 3;// UnityEngine.Random.Range(0, 4);
         for (int i = 0; i < columnInsertCount; i++)
         {
             // Debug.LogFormat("Insert column at index {0}", 1);
             InsertColumn(ref tiles, 1);
+        }
+
+        // Iterate over all square patches and mutate them to random variants
+        const int patchSize = 3;
+        for (int x = 0; x <= tiles.GetLength(1) - patchSize; x += patchSize)
+        {
+            for (int z = 0; z <= tiles.GetLength(0) - patchSize; z += patchSize)
+            {
+                // if(z > 0) return;
+
+                // scanX = x;
+                // scanZ = z;
+                // scanSize = patchSize;
+
+                Connector[] connectors = ScanForConnectors(tiles, x, z, patchSize);
+                // debugConnectors = connectors;
+                
+                // To Local space
+                for (int i = 0; i < connectors.Length; i++)
+                    connectors[i] = new Connector(connectors[i].x - x, connectors[i].z - z, connectors[i].direction);
+
+                if (connectors.Length == 0)
+                    continue;
+
+                // Clear old tiles
+                for (int lx = 0; lx < patchSize; lx++)
+                    for (int lz = 0; lz < patchSize; lz++)
+                        tiles[lz + z, lx + x] = TileType.None;
+
+                List<PathStep[]> paths = new List<PathStep[]>();
+                FindPath(new Point(connectors[0].x, connectors[0].z),
+                        null,
+                        new Point(connectors[1].x, connectors[1].z),
+                        patchSize,
+                        ref paths);
+                // debugPaths = paths;
+
+                // foreach (var printPath in paths)
+                    // Debug.LogFormat("Path: {0}", string.Join(",", printPath.Select(x => x.ToString()).ToArray()));
+
+                if (paths.Count() == 0)
+                    continue;
+
+                Direction lastDirection = connectors[0].direction;
+                PathStep[] path = paths[UnityEngine.Random.Range(0, paths.Count())];
+                for (int i = 0; i < path.Length; i++)
+                {
+                    Point worldPoint = new Point(path[i].point.x + x, path[i].point.z + z);
+                    Direction nextDirection = (i < path.Length - 1) ? Mirror(path[i + 1].entry) : connectors[1].direction;
+                    // Debug.LogFormat("{0} {1} {2}", lastDirection, nextDirection, worldPoint);
+                    tiles[worldPoint.z, worldPoint.x] = GetTileFromDirections(lastDirection, nextDirection);
+                    // Debug.LogFormat("{0}", tiles[worldPoint.z, worldPoint.x]);
+                    lastDirection = Mirror(nextDirection);
+                }
+            }
         }
     }
 
@@ -135,7 +251,7 @@ public class TrackGenerator : MonoBehaviour
 
         if (!valid)
         {
-            Debug.LogFormat("ERROR: Row {0} is invalid for insertion. Only StraightNS and None tiles are allowed!", rowIndex);
+            Debug.LogErrorFormat("Row {0} is invalid for insertion. Only StraightNS and None tiles are allowed!", rowIndex);
             return;
         }
 
@@ -154,11 +270,11 @@ public class TrackGenerator : MonoBehaviour
         // Validate if insertion at column index is possible
         bool valid = true;
         for (int z = 0; z < tiles.GetLength(0); z++)
-            valid &= tiles[z, columnIndex] == TileType.None || tiles[z, columnIndex] == TileType.StraightEW;
+            valid &= tiles[z, columnIndex] == TileType.None || tiles[z, columnIndex] == TileType.StraightWE;
 
         if (!valid)
         {
-            Debug.LogFormat("ERROR: Column {0} is invalid for insertion. Only StraightEW and None tiles are allowed!", columnIndex);
+            Debug.LogErrorFormat("Column {0} is invalid for insertion. Only StraightEW and None tiles are allowed!", columnIndex);
             return;
         }
 
@@ -174,9 +290,9 @@ public class TrackGenerator : MonoBehaviour
 
     Connector[] ScanForConnectors(TileType[,] tiles, int scan_x, int scan_z, int scan_size)
     {
-        if(scan_x + scan_size > tiles.GetLength(1) || scan_z + scan_size > tiles.GetLength(0)
+        if (scan_x + scan_size > tiles.GetLength(1) || scan_z + scan_size > tiles.GetLength(0)
          || scan_x < 0 || scan_z < 0)
-            throw new IndexOutOfRangeException("Scan area is outside tile map!");
+            throw new IndexOutOfRangeException(String.Format("Scan area is outside tile map! Tiles dimensions: {0}x{1} x: {2} z:{3} size:{4}", tiles.GetLength(0), tiles.GetLength(1), scan_x, scan_z, scan_size));
 
         List<Connector> entries = new List<Connector>();
 
@@ -184,7 +300,7 @@ public class TrackGenerator : MonoBehaviour
         for (int x = scan_x; x < scan_x + scan_size; x++)
         {
             TileType tile = tiles[scan_z, x];
-            if(tile == TileType.StraightNS || tile == TileType.CornerNE || tile == TileType.CornerNW)
+            if (tile == TileType.StraightNS || tile == TileType.CornerNE || tile == TileType.CornerNW)
                 entries.Add(new Connector(x, scan_z, Direction.North));
         }
 
@@ -192,7 +308,7 @@ public class TrackGenerator : MonoBehaviour
         for (int x = scan_x; x < scan_x + scan_size; x++)
         {
             TileType tile = tiles[scan_z + scan_size - 1, x];
-            if(tile == TileType.StraightNS || tile == TileType.CornerSE || tile == TileType.CornerSW)
+            if (tile == TileType.StraightNS || tile == TileType.CornerSE || tile == TileType.CornerSW)
                 entries.Add(new Connector(x, scan_z + scan_size - 1, Direction.South));
         }
 
@@ -200,7 +316,7 @@ public class TrackGenerator : MonoBehaviour
         for (int z = scan_z; z < scan_z + scan_size; z++)
         {
             TileType tile = tiles[z, scan_x + scan_size - 1];
-            if(tile == TileType.StraightEW || tile == TileType.CornerSE || tile == TileType.CornerNE)
+            if (tile == TileType.StraightWE || tile == TileType.CornerSE || tile == TileType.CornerNE)
                 entries.Add(new Connector(scan_x + scan_size - 1, z, Direction.East));
         }
 
@@ -208,7 +324,7 @@ public class TrackGenerator : MonoBehaviour
         for (int z = scan_z; z < scan_z + scan_size; z++)
         {
             TileType tile = tiles[z, scan_x];
-            if(tile == TileType.StraightEW || tile == TileType.CornerSW || tile == TileType.CornerNW)
+            if (tile == TileType.StraightWE || tile == TileType.CornerSW || tile == TileType.CornerNW)
                 entries.Add(new Connector(scan_x, z, Direction.West));
         }
 
@@ -217,31 +333,30 @@ public class TrackGenerator : MonoBehaviour
 
     TileType[,] GenerateRoad(int patchSize, Connector[] connectors)
     {
-        TileType[,] road = new TileType[patchSize,patchSize];
+        TileType[,] road = new TileType[patchSize, patchSize];
 
-        if(connectors.Length != 2)
+        if (connectors.Length != 2)
             throw new ArgumentException("Only two connectors are supported!");
 
-        Direction[,,] tiles = new Direction[2,2,2];
+        Direction[,,] tiles = new Direction[2, 2, 2];
 
-        List<Point[]> paths = new List<Point[]>();
-        FindPath(new Point(connectors[0].x, connectors[0].z), 
+        List<PathStep[]> paths = new List<PathStep[]>();
+        FindPath(new Point(connectors[0].x, connectors[0].z),
                 null,
-                new Point(connectors[1].x, connectors[1].z), 
-                patchSize, 
+                new Point(connectors[1].x, connectors[1].z),
+                patchSize,
                 ref paths);
 
         debugPaths = paths;
 
-        foreach (var path in paths)
-            Debug.LogFormat("Path: {0}", string.Join(",", path.Select(x => x.ToString()).ToArray()));
+        
 
         return road;
     }
 
     Point Move(Point p, Direction d)
     {
-        switch(d)
+        switch (d)
         {
             case Direction.North: return new Point(p.x, p.z - 1);
             case Direction.South: return new Point(p.x, p.z + 1);
@@ -253,7 +368,7 @@ public class TrackGenerator : MonoBehaviour
 
     Direction Mirror(Direction d)
     {
-        switch(d)
+        switch (d)
         {
             case Direction.North: return Direction.South;
             case Direction.South: return Direction.North;
@@ -264,39 +379,48 @@ public class TrackGenerator : MonoBehaviour
         }
     }
 
-    void FindPath(Point current, List<Point> currentPath, Point goal, int size, ref List<Point[]> results)
+    void FindPath(Point current, List<PathStep> currentPath, Point goal, int size, ref List<PathStep[]> results)
     {
-        Debug.LogFormat("{0} {1} {2}", current, currentPath, goal);
+        // Debug.LogFormat("{0} {1}", current, goal);
+        // if(currentPath is not null)
+            // Debug.LogFormat("Path: {0}", string.Join(",", currentPath.Select(x => x.ToString()).ToArray()));
 
         // Reach goal point
-        if(current == goal)
+        if (current == goal)
         {
             results.Add(currentPath.ToArray());
             return;
         }
 
-        if(currentPath is null)
-            currentPath = new List<Point>{current};
+        if (currentPath is null)
+            currentPath = new List<PathStep> { new PathStep(current, Direction.Unset) };
 
         foreach (Direction direction in Enum.GetValues(typeof(Direction)))
         {
-            if(direction == Direction.Unset)
+            if (direction == Direction.Unset)
                 continue;
-
-            Debug.LogFormat("Trying direction {0}", direction);
 
             Point newPoint = Move(current, direction);
+            // Debug.LogFormat("Trying direction {0} {1} -> {2} {3}", direction, current, newPoint, size);
 
             // Check if out of bounds
-            if(newPoint.x < 0 || newPoint.x >= size || newPoint.z < 0 || newPoint.z >= size)
+            if (newPoint.x < 0 || newPoint.x >= size || newPoint.z < 0 || newPoint.z >= size)
+            {
+                // Debug.Log("Out of bounds!");
                 continue;
+            }
 
             // Don't walk in cycles
-            if(currentPath.Contains(newPoint))
+            if (currentPath.Any(step => step.point == newPoint))
+            {
+                // Debug.LogFormat("Current path already contains {0}", newPoint);
+                // Debug.LogFormat("Path: {0}", string.Join(",", currentPath.Select(x => x.ToString()).ToArray()));
                 continue;
-
-            List<Point> newPath = new List<Point>(currentPath);
-            newPath.Add(newPoint);
+            }
+            
+            // Deep copy path
+            List<PathStep> newPath = currentPath.ConvertAll(step => new PathStep(step.point, step.entry));
+            newPath.Add(new PathStep(newPoint, Mirror(direction)));
             FindPath(newPoint, newPath, goal, size, ref results);
         }
     }
@@ -318,7 +442,7 @@ public class TrackGenerator : MonoBehaviour
                         road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.identity, this.transform);
                         road.name = String.Format("{0} ({1}, {2})", tile, x, z);
                         break;
-                    case TileType.StraightEW:
+                    case TileType.StraightWE:
                         road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
                         road.name = String.Format("{0} ({1}, {2})", tile, x, z);
                         break;
@@ -346,7 +470,9 @@ public class TrackGenerator : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        if(roadTiles == null)
+        return;
+        
+        if (roadTiles == null)
             return;
 
         float gridSize = 10.0f;
@@ -359,8 +485,7 @@ public class TrackGenerator : MonoBehaviour
 
         float yOffset = 0.5f;
         Gizmos.color = Color.red;
-        Connector[] connectors = ScanForConnectors(roadTiles, scanX, scanZ, scanSize);
-        foreach (var connector in connectors)
+        foreach (var connector in debugConnectors)
         {
             float offsetX = 0;
             float offsetZ = 0;
@@ -380,18 +505,18 @@ public class TrackGenerator : MonoBehaviour
                     break;
             }
             Gizmos.DrawWireSphere(new Vector3(gridSize * (connector.x + offsetX), yOffset, -gridSize * (connector.z + offsetZ)), 1.0f);
-            Gizmos.DrawLine(new Vector3(gridSize * (connector.x + offsetX), yOffset , -gridSize * (connector.z + offsetZ)), new Vector3(gridSize * (connector.x), yOffset, -gridSize * (connector.z)));
+            Gizmos.DrawLine(new Vector3(gridSize * (connector.x + offsetX), yOffset, -gridSize * (connector.z + offsetZ)), new Vector3(gridSize * (connector.x), yOffset, -gridSize * (connector.z)));
         }
 
-        if(debugPaths is not null)
+        if (debugPaths is not null)
         {
             var points = debugPaths[0];
             for (int i = 0; i < points.Length; i++)
             {
-                Gizmos.DrawWireSphere(new Vector3(gridSize * (points[i].x + scanX), yOffset, -gridSize * (points[i].z + scanZ)), 1.0f);
-                if(i > 0)
+                Gizmos.DrawWireSphere(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), 1.0f);
+                if (i > 0)
                 {
-                    Gizmos.DrawLine(new Vector3(gridSize * (points[i].x + scanX), yOffset, -gridSize * (points[i].z + scanZ)), new Vector3(gridSize * (points[i-1].x + scanX), yOffset, -gridSize * (points[i-1].z + scanZ)));
+                    Gizmos.DrawLine(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), new Vector3(gridSize * (points[i - 1].point.x + scanX), yOffset, -gridSize * (points[i - 1].point.z + scanZ)));
                 }
             }
         }
