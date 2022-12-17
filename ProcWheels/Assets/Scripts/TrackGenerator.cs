@@ -81,13 +81,11 @@ public class TrackGenerator : MonoBehaviour
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
 
+    public int patchSize = 2;
+
     TileType[,] roadTiles;
     List<PathStep[]> debugPaths;
     Connector[] debugConnectors;
-
-    public int scanX = 0;
-    public int scanZ = 0;
-    public int scanSize = 2;
 
     public void Clear()
     {
@@ -187,7 +185,6 @@ public class TrackGenerator : MonoBehaviour
         }
 
         // Iterate over all square patches and mutate them to random variants
-        const int patchSize = 3;
         for (int x = 0; x <= tiles.GetLength(1) - patchSize; x += patchSize)
         {
             for (int z = 0; z <= tiles.GetLength(0) - patchSize; z += patchSize)
@@ -471,7 +468,7 @@ public class TrackGenerator : MonoBehaviour
     void OnDrawGizmos()
     {
         return;
-        
+
         if (roadTiles == null)
             return;
 
@@ -479,9 +476,9 @@ public class TrackGenerator : MonoBehaviour
 
         Gizmos.color = Color.yellow;
 
-        for (int x = 0; x < scanSize; x++)
-            for (int z = 0; z < scanSize; z++)
-                Gizmos.DrawWireCube(new Vector3(gridSize * (scanX + x), 0.0f, -gridSize * (scanZ + z)), new Vector3(gridSize, 0.5f, gridSize));
+        // for (int x = 0; x < scanSize; x++)
+        //     for (int z = 0; z < scanSize; z++)
+        //         Gizmos.DrawWireCube(new Vector3(gridSize * (scanX + x), 0.0f, -gridSize * (scanZ + z)), new Vector3(gridSize, 0.5f, gridSize));
 
         float yOffset = 0.5f;
         Gizmos.color = Color.red;
@@ -508,18 +505,18 @@ public class TrackGenerator : MonoBehaviour
             Gizmos.DrawLine(new Vector3(gridSize * (connector.x + offsetX), yOffset, -gridSize * (connector.z + offsetZ)), new Vector3(gridSize * (connector.x), yOffset, -gridSize * (connector.z)));
         }
 
-        if (debugPaths is not null)
-        {
-            var points = debugPaths[0];
-            for (int i = 0; i < points.Length; i++)
-            {
-                Gizmos.DrawWireSphere(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), 1.0f);
-                if (i > 0)
-                {
-                    Gizmos.DrawLine(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), new Vector3(gridSize * (points[i - 1].point.x + scanX), yOffset, -gridSize * (points[i - 1].point.z + scanZ)));
-                }
-            }
-        }
+        // if (debugPaths is not null)
+        // {
+        //     var points = debugPaths[0];
+        //     for (int i = 0; i < points.Length; i++)
+        //     {
+        //         Gizmos.DrawWireSphere(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), 1.0f);
+        //         if (i > 0)
+        //         {
+        //             Gizmos.DrawLine(new Vector3(gridSize * (points[i].point.x + scanX), yOffset, -gridSize * (points[i].point.z + scanZ)), new Vector3(gridSize * (points[i - 1].point.x + scanX), yOffset, -gridSize * (points[i - 1].point.z + scanZ)));
+        //         }
+        //     }
+        // }
 
     }
 }

@@ -585,9 +585,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   roadStraightPrefab: {fileID: 5459982118726177938, guid: 5db5cfac862763f40997a52d48339044, type: 3}
   roadCornerSmallPrefab: {fileID: 4901097047382744602, guid: d3773497909250a41b53a1ac9c2edd22, type: 3}
-  scanX: 3
-  scanZ: 3
-  scanSize: 3
+  patchSize: 2
 --- !u!1 &1211061948
 GameObject:
   m_ObjectHideFlags: 0
