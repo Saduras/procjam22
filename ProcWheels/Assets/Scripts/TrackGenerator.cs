@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -144,7 +145,8 @@ public class TrackGenerator : MonoBehaviour
         Clear();
 
         // Spawn new track
-        SpawnPrefabs(roadTiles);
+        StopAllCoroutines();
+        StartCoroutine("SpawnPrefabs");
     }
 
     static TileType GetTileFromDirections(Direction direction1, Direction direction2)
@@ -443,14 +445,14 @@ public class TrackGenerator : MonoBehaviour
         }
     }
 
-    void SpawnPrefabs(TileType[,] tiles)
+    IEnumerator SpawnPrefabs()
     {
         float gridSize = 10.0f;
 
-        for (int z = 0; z < tiles.GetLength(0); z++)
-            for (int x = 0; x < tiles.GetLength(1); x++)
+        for (int z = 0; z < roadTiles.GetLength(0); z++)
+            for (int x = 0; x < roadTiles.GetLength(1); x++)
             {
-                TileType tile = tiles[z, x];
+                TileType tile = roadTiles [z, x];
                 GameObject road = null;
                 switch (tile)
                 {
@@ -483,6 +485,7 @@ public class TrackGenerator : MonoBehaviour
                     default:
                         throw new ArgumentException(string.Format("Unsupported tile type {0}", tile));
                 }
+                yield return new WaitForSeconds(0.02f);
             }
     }
 
