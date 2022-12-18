@@ -1,3 +1,4 @@
+#if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
 
@@ -13,3 +14,4 @@ public class TrackGeneratorEditor : Editor
             (target as TrackGenerator).Clear();
     }
 }
+#endif
