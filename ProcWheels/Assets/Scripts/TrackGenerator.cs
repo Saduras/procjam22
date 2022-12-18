@@ -81,11 +81,34 @@ public class TrackGenerator : MonoBehaviour
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
 
+    public int rows = 4;
+    public int columns = 4;
     public int patchSize = 2;
 
     TileType[,] roadTiles;
     List<PathStep[]> debugPaths;
     Connector[] debugConnectors;
+
+    public void OnRowsChanged(String newText)
+    {
+        int newValue = 0;
+        if(int.TryParse(newText, out newValue))
+            rows = newValue;
+    }
+
+    public void OnColumnsChanged(String newText)
+    {
+        int newValue = 0;
+        if(int.TryParse(newText, out newValue))
+            columns = newValue;
+    }
+    
+    public void OnPatchSizeChanged(String newText)
+    {
+        int newValue = 0;
+        if(int.TryParse(newText, out newValue))
+            patchSize = newValue;
+    }
 
     public void Clear()
     {
@@ -170,17 +193,15 @@ public class TrackGenerator : MonoBehaviour
     {
         // TODO do something cool here
 
-        int rowInsertCount = 3;// UnityEngine.Random.Range(0, 4);
+        int rowInsertCount = rows - 3;
         for (int i = 0; i < rowInsertCount; i++)
         {
-            // Debug.LogFormat("Insert row at index {0}", 1);
             InsertRow(ref tiles, 1);
         }
 
-        int columnInsertCount = 3;// UnityEngine.Random.Range(0, 4);
+        int columnInsertCount = columns - 3;
         for (int i = 0; i < columnInsertCount; i++)
         {
-            // Debug.LogFormat("Insert column at index {0}", 1);
             InsertColumn(ref tiles, 1);
         }
 
