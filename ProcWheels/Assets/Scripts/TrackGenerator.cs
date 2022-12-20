@@ -122,6 +122,21 @@ public class TrackGenerator : MonoBehaviour
                 DestroyImmediate(this.transform.GetChild(0).gameObject);
     }
 
+    public Vector3 GetStart()
+    {
+        for (int z = 0; z < roadTiles.GetLength(0); z++)
+        {
+            for (int x = 0; x < roadTiles.GetLength(1); x++)
+            {
+                TileType tile = roadTiles[z, x];
+                if(tile == TileType.StraightNS)
+                    return new Vector3(x * 10.0f, 0.0f, z * -10.0f);
+            }
+        }
+
+        return Vector3.zero;
+    }
+
     public void Generate()
     {
         // Start track
