@@ -10,6 +10,8 @@ public class RaceManager : MonoBehaviour
     public GameObject editorUI;
     public GameObject raceUI;
 
+    public CameraController cameraController;
+
     GameObject car;
 
     public void StartRace()
@@ -20,10 +22,12 @@ public class RaceManager : MonoBehaviour
         car = Instantiate(carPrefab, startPosition, Quaternion.identity);
         editorUI.SetActive(false);
         raceUI.SetActive(true);
+        cameraController.SetTargetCar(car);
     }
 
     public void StopRace()
     {
+        cameraController.ClearTarget();
         Destroy(car);
         editorUI.SetActive(true);
         raceUI.SetActive(false);
