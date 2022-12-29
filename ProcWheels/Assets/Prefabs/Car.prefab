@@ -119,6 +119,22 @@ PrefabInstance:
       propertyPath: m_Name
       value: raceCarRed
       objectReference: {fileID: 0}
+    - target: {fileID: 1278253906873026316, guid: e4f2029e0ef71104d8bbc274bc5dd351, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9999932
+      objectReference: {fileID: 0}
+    - target: {fileID: 1278253906873026316, guid: e4f2029e0ef71104d8bbc274bc5dd351, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1278253906873026316, guid: e4f2029e0ef71104d8bbc274bc5dd351, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.0036972193
+      objectReference: {fileID: 0}
+    - target: {fileID: 1278253906873026316, guid: e4f2029e0ef71104d8bbc274bc5dd351, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: -0.424
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e4f2029e0ef71104d8bbc274bc5dd351, type: 3}
 --- !u!1 &4113376978132820631 stripped
