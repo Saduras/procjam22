@@ -343,7 +343,7 @@ MonoBehaviour:
   - {fileID: 4464644452909840598}
   - {fileID: 8516286138652689566}
   - {fileID: 15984349589215684}
-  skittingTreshold: 3.5
+  skitingTreshold: 3.5
 --- !u!1 &5595301833926997663
 GameObject:
   m_ObjectHideFlags: 0
