@@ -12,9 +12,16 @@ public class CarController : MonoBehaviour
     public float driftFactor = 0.95f;
     public float breakFactor = 3.0f;
 
+    [Header("Visualization")]
+    public float maxSteerAngle = 30.0f;
+    public Transform leftFrontWheel;
+    public Transform rightFrontWheel;
+    public GameObject breakLight;
+
 
     float accelerationInput;
     float steeringInput;
+    bool isBreaking;
 
     float rotationAngle;
 
@@ -22,21 +29,28 @@ public class CarController : MonoBehaviour
 
     void Awake()
     {
-        rb = GetComponent<Rigidbody>();    
+        rb = GetComponent<Rigidbody>();
     }
 
     void Update()
     {
+        // Get input
         accelerationInput = Input.GetAxis("Vertical");
         steeringInput = Input.GetAxis("Horizontal");
+        isBreaking = accelerationInput < 0.0f && Vector3.Dot(rb.velocity, transform.forward) > 0.0f;
+
+        // Rotate front wheels
+        leftFrontWheel.localRotation = Quaternion.AngleAxis(steeringInput * maxSteerAngle, Vector3.up);
+        rightFrontWheel.localRotation = Quaternion.AngleAxis(steeringInput * maxSteerAngle, Vector3.up);
+
+        // Toggle break light
+        breakLight.SetActive(isBreaking);
     }
 
     void FixedUpdate()
     {
-        float forwardVelocityFactor =  Vector3.Dot(rb.velocity, transform.forward);
-
         // Engine acceleration
-        float breakingInfluence = accelerationInput < 0.0f && forwardVelocityFactor > 0.0f ? breakFactor : 1.0f;
+        float breakingInfluence = isBreaking ? breakFactor : 1.0f;
         Vector3 accelerationForce = transform.forward * accelerationInput * accelerationFactor * breakingInfluence;
         rb.AddForce(accelerationForce, ForceMode.Force);
 
@@ -45,7 +59,7 @@ public class CarController : MonoBehaviour
         rb.MoveRotation(Quaternion.AngleAxis(rotationAngle, Vector3.up));
 
         // Reduce orthogonal velocity
-        Vector3 forwardVelocity = transform.forward * forwardVelocityFactor;
+        Vector3 forwardVelocity = transform.forward * Vector3.Dot(rb.velocity, transform.forward);
         Vector3 rightVelocity = transform.right * Vector3.Dot(rb.velocity, transform.right);
         rb.velocity = forwardVelocity + rightVelocity * driftFactor;
     }
