@@ -5,6 +5,7 @@ using UnityEngine;
 public class RaceManager : MonoBehaviour
 {
     public GameObject carPrefab;
+    public float spawnHeight = 0.3f;
     public TrackGenerator track;
 
     public GameObject editorUI;
@@ -17,7 +18,7 @@ public class RaceManager : MonoBehaviour
     public void StartRace()
     {
         Vector3 startPosition = track.GetStart();
-        startPosition += new Vector3(0.0f, 1.0f, 0.0f);
+        startPosition += new Vector3(0.0f, spawnHeight, 0.0f);
 
         car = Instantiate(carPrefab, startPosition, Quaternion.identity);
         editorUI.SetActive(false);

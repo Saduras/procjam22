@@ -647,6 +647,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   carPrefab: {fileID: 4442270933452519517, guid: 00971c106aa34d845a74876421325436, type: 3}
+  spawnHeight: 0.115
   track: {fileID: 1028544561}
   editorUI: {fileID: 273896918}
   raceUI: {fileID: 1727519244}
@@ -1331,7 +1332,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d8b6dd210a64de458fd2cdf973c9c4e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  racingOrthographicSize: 10
+  racingOrthographicSize: 6
   offset: {fileID: 671865209}
   smoothZoomStep: 0.1
   smoothStepPosition: 0.3
