@@ -9,6 +9,7 @@ public class CarController : MonoBehaviour
     [Header("Car Settings")]
     public float accelerationFactor = 30.0f;
     public float turnFactor = 3.5f;
+    public float maxSteeringAtSpeed = 10.0f;
     public float driftFactor = 0.95f;
     public float breakFactor = 3.0f;
 
@@ -55,7 +56,8 @@ public class CarController : MonoBehaviour
         rb.AddForce(accelerationForce, ForceMode.Force);
 
         // Steering
-        rotationAngle += steeringInput * turnFactor;
+        float steeringLimitBySpeed = Mathf.Clamp01(rb.velocity.magnitude / maxSteeringAtSpeed);
+        rotationAngle += steeringInput * turnFactor * steeringLimitBySpeed;
         rb.MoveRotation(Quaternion.AngleAxis(rotationAngle, Vector3.up));
 
         // Reduce orthogonal velocity
