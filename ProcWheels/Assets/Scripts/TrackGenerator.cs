@@ -77,6 +77,7 @@ struct DirectedPoint
     }
 }
 
+[RequireComponent(typeof(MeshCollider))]
 public class TrackGenerator : MonoBehaviour
 {
     public GameObject roadStraightPrefab;
@@ -89,6 +90,8 @@ public class TrackGenerator : MonoBehaviour
     TileType[,] roadTiles;
     List<DirectedPoint[]> debugPaths;
     Connector[] debugConnectors;
+
+    new MeshCollider collider;
 
     public void OnRowsChanged(String newText)
     {
@@ -120,10 +123,14 @@ public class TrackGenerator : MonoBehaviour
             // Source: https://stackoverflow.com/questions/38120084/how-can-we-destroy-child-objects-in-edit-modeunity3d
             for (int i = this.transform.childCount; i > 0; --i)
                 DestroyImmediate(this.transform.GetChild(0).gameObject);
+
+        collider.sharedMesh = null;
     }
 
     void Start()
     {
+        collider = GetComponent<MeshCollider>();
+
         Generate();
     }
 
@@ -480,5 +487,83 @@ public class TrackGenerator : MonoBehaviour
                 }
                 yield return new WaitForSeconds(0.02f);
             }
+
+        // Generate collision mesh
+        MeshFilter[] meshFilters = GetComponentsInChildren<MeshFilter>();
+        List<CombineInstance> combine = new List<CombineInstance>(meshFilters.Length);
+        for (int i = 0; i < meshFilters.Length; i++)
+        {
+            for (int j = 0; j < meshFilters[i].sharedMesh.subMeshCount; j++)
+            {
+                CombineInstance instance = new CombineInstance();
+                instance.mesh = meshFilters[i].sharedMesh;
+                instance.transform = meshFilters[i].transform.localToWorldMatrix; 
+                instance.subMeshIndex = j;
+                combine.Add(instance);
+            }
+        }
+        Mesh proceduralMesh = new Mesh();
+        proceduralMesh.name = "Track Collider";
+        proceduralMesh.CombineMeshes(combine.ToArray());
+        WeldVertices(proceduralMesh);
+        proceduralMesh.UploadMeshData(true);
+        collider.sharedMesh = proceduralMesh;
+    }
+
+    public static void WeldVertices(Mesh mesh, float maxSqrDistance = 0.001f, float maxNormalAngle = 0.1f)
+    {
+        var verts = mesh.vertices;
+        var normals = mesh.normals;
+        var uvs = mesh.uv;
+        List<int> newVerts = new List<int>();
+        int[] map = new int[verts.Length];
+
+        // Create mapping and filter duplicates.
+        for(int i = 0; i < verts.Length; i++)
+        {
+            var p = verts[i];
+            var n = normals[i];
+            var uv = uvs[i];
+            bool duplicate = false;
+            for(int j = 0; j < newVerts.Count; j++)
+            {
+                int a = newVerts[j];
+                if ((verts[a] - p).sqrMagnitude <= maxSqrDistance && Vector3.Angle(normals[a], n) <= maxNormalAngle)
+                {
+                    map[i] = j;
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate)
+            {
+                map[i] = newVerts.Count;
+                newVerts.Add(i);
+            }
+        }
+
+        // Create new vertices
+        var verts2 = new Vector3[newVerts.Count];
+        var normals2 = new Vector3[newVerts.Count];
+        var uvs2 = new Vector2[newVerts.Count];
+        for(int i = 0; i < newVerts.Count; i++)
+        {
+            int a = newVerts[i];
+            verts2[i] = verts[a];
+            normals2[i] = normals[a];
+            uvs2[i] = uvs[a];
+        }
+
+        // Map the triangle to the new vertices
+        var tris = mesh.triangles;
+        for(int i = 0; i < tris.Length; i++)
+            tris[i] = map[tris[i]];
+
+        // Update mesh
+        mesh.Clear();
+        mesh.vertices = verts2;
+        mesh.normals = normals2;
+        mesh.uv = uvs2;
+        mesh.triangles = tris;
     }
 }
