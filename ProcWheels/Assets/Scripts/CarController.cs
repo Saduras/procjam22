@@ -50,7 +50,7 @@ public class CarController : MonoBehaviour
         breakLight.SetActive(isBreaking);
 
         // Emite tire trails
-        float lateralVelocity =  Vector3.Dot(rb.velocity, transform.right);
+        float lateralVelocity = Mathf.Abs(Vector3.Dot(rb.velocity, transform.right));
         bool emiteTireTrails = isBreaking || lateralVelocity > skitingTreshold;
         foreach (var trailRenderer in tireTrails)
             trailRenderer.emitting = emiteTireTrails;
