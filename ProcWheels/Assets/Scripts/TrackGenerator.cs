@@ -40,6 +40,8 @@ struct Connector
 
 struct Point
 {
+    public static Point Invalid = new Point(-1, -1);
+
     public int x;
     public int z;
 
@@ -445,50 +447,101 @@ public class TrackGenerator : MonoBehaviour
         }
     }
 
+    Direction GetExitDirection(TileType tile, Direction entryDirection)
+    {
+        switch (tile)
+        {
+            case TileType.StraightNS: return entryDirection == Direction.North ? Direction.South : Direction.North;
+            case TileType.StraightWE: return entryDirection == Direction.West ? Direction.East : Direction.West;
+            case TileType.CornerSW: return entryDirection == Direction.South ? Direction.West : Direction.South;
+            case TileType.CornerSE: return entryDirection == Direction.South ? Direction.East : Direction.South; 
+            case TileType.CornerNW: return entryDirection == Direction.North ? Direction.West : Direction.North;
+            case TileType.CornerNE: return entryDirection == Direction.North ? Direction.East : Direction.North;
+            default: return Direction.Unset;
+        }
+    }
+
     IEnumerator SpawnPrefabs()
     {
-        float gridSize = 10.0f;
+        const float gridSize = 10.0f;
 
+        // Find some starting point
+        Point start = Point.Invalid;
         for (int z = 0; z < roadTiles.GetLength(0); z++)
+        {
             for (int x = 0; x < roadTiles.GetLength(1); x++)
-            {
-                TileType tile = roadTiles [z, x];
-                GameObject road = null;
-                switch (tile)
+                if(roadTiles[z, x] != TileType.None)
                 {
-                    case TileType.None:
-                        break;
-                    case TileType.StraightNS:
-                        road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.identity, this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    case TileType.StraightWE:
-                        road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    case TileType.CornerSE:
-                        road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.identity, this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    case TileType.CornerSW:
-                        road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    case TileType.CornerNE:
-                        road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, -90.0f, 0.0f), this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    case TileType.CornerNW:
-                        road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 180.0f, 0.0f), this.transform);
-                        road.name = String.Format("{0} ({1}, {2})", tile, x, z);
-                        break;
-                    default:
-                        throw new ArgumentException(string.Format("Unsupported tile type {0}", tile));
+                    start = new Point(x, z);
+                    break;
                 }
-                yield return new WaitForSeconds(0.02f);
-            }
 
-        // Generate collision mesh
+            if(start != Point.Invalid)
+                break;
+        }
+
+        Point current = start;
+        Direction entryDirection = Direction.Unset;
+        do {
+            TileType tile = roadTiles[current.z, current.x];
+            Direction exitDirection = GetExitDirection(tile, entryDirection);
+            SpawnRoadTile(tile, current.x, current.z, gridSize);
+            yield return new WaitForSeconds(0.02f);
+
+            current = Move(current, exitDirection);
+            entryDirection = Mirror(exitDirection);
+        } while(current != start);
+
+        // for (int z = 0; z < roadTiles.GetLength(0); z++)
+        //     for (int x = 0; x < roadTiles.GetLength(1); x++)
+        //     {
+        //         TileType tile = roadTiles[current.z, current.x];
+        //         SpawnRoadTile(tile, x, z, gridSize);
+        //         yield return new WaitForSeconds(0.02f);
+        //     }
+
+        GenerateCollisionMesh();
+    }
+
+    void SpawnRoadTile(TileType tile, int x, int z, float gridSize)
+    {
+        GameObject road = null;
+        switch (tile)
+        {
+            case TileType.None:
+                break;
+            case TileType.StraightNS:
+                road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.identity, this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            case TileType.StraightWE:
+                road = Instantiate(roadStraightPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            case TileType.CornerSE:
+                road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.identity, this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            case TileType.CornerSW:
+                road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            case TileType.CornerNE:
+                road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, -90.0f, 0.0f), this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            case TileType.CornerNW:
+                road = Instantiate(roadCornerSmallPrefab, new Vector3(x * gridSize, 0.0f, -z * gridSize), Quaternion.Euler(0.0f, 180.0f, 0.0f), this.transform);
+                road.name = String.Format("{0} ({1}, {2})", tile, x, z);
+                break;
+            default:
+                throw new ArgumentException(string.Format("Unsupported tile type {0}", tile));
+        }
+    }
+
+    void GenerateCollisionMesh()
+    {
+        // Collect road meshes
         MeshFilter[] meshFilters = GetComponentsInChildren<MeshFilter>();
         List<CombineInstance> combine = new List<CombineInstance>(meshFilters.Length);
         for (int i = 0; i < meshFilters.Length; i++)
@@ -502,6 +555,8 @@ public class TrackGenerator : MonoBehaviour
                 combine.Add(instance);
             }
         }
+
+        // Create collider mesh
         Mesh proceduralMesh = new Mesh();
         proceduralMesh.name = "Track Collider";
         proceduralMesh.CombineMeshes(combine.ToArray());
