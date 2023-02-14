@@ -55,6 +55,8 @@ struct Point
     public override int GetHashCode() => x.GetHashCode() ^ z.GetHashCode();
     public static bool operator ==(Point lhs, Point rhs) => lhs.x == rhs.x && lhs.z == rhs.z;
     public static bool operator !=(Point lhs, Point rhs) => !(lhs == rhs);
+    public static Point operator +(Point lhs, Point rhs) => new Point(lhs.x + rhs.x, lhs.z + lhs.z);
+    public static Point operator -(Point lhs, Point rhs) => new Point(lhs.x - rhs.x, lhs.z - lhs.z);
 
     public override string ToString()
     {
@@ -84,6 +86,7 @@ public class TrackGenerator : MonoBehaviour
 {
     public GameObject roadStraightPrefab;
     public GameObject roadCornerSmallPrefab;
+    public GameObject roadCornerMediumPrefab;
 
     public int rows = 4;
     public int columns = 4;
@@ -461,6 +464,32 @@ public class TrackGenerator : MonoBehaviour
         }
     }
 
+    Tuple<TileType[], DirectedPoint> GetTilesForward(DirectedPoint start, int steps, Point end)
+    {
+        TileType[] result = new TileType[steps];
+
+        Point current = start.point;
+        Direction exitDirection = start.direction;
+
+        result[0] = roadTiles[current.z, current.x];
+
+        for (int i = 1; i < steps; i++)
+        {
+            // Advance cursor
+            current = Move(current, exitDirection);
+            exitDirection = GetExitDirection(roadTiles[current.z, current.x], Mirror(exitDirection));
+
+            // Return empty result if we reach the end of the track
+            if(current == end)
+                return null;
+
+            // Read tile
+            result[i] = roadTiles[current.z, current.x];
+        }
+
+        return Tuple.Create(result, new DirectedPoint(current, exitDirection));
+    }
+
     IEnumerator SpawnPrefabs()
     {
         const float gridSize = 10.0f;
@@ -485,11 +514,80 @@ public class TrackGenerator : MonoBehaviour
         do {
             TileType tile = roadTiles[current.z, current.x];
             Direction exitDirection = GetExitDirection(tile, entryDirection);
-            SpawnRoadTile(tile, current.x, current.z, gridSize);
-            yield return new WaitForSeconds(0.02f);
 
-            current = Move(current, exitDirection);
-            entryDirection = Mirror(exitDirection);
+            // Spawn 2x2 corner tile if possible
+            bool isMediumTile = false;
+            // Is start tile a straight?
+            if(tile == TileType.StraightNS || tile == TileType.StraightWE)
+            {
+                Tuple<TileType[], DirectedPoint> forwardScan = GetTilesForward(new DirectedPoint(current, exitDirection), 3, start);
+
+                if(forwardScan != null)
+                {
+                    Debug.LogFormat("{0} {1} {2}", forwardScan.Item1[0],  forwardScan.Item1[1],  forwardScan.Item1[2]);
+                    GameObject road;
+                    int x = current.x;
+                    int z = current.z;
+
+                    TileType[] mediumNW = new TileType[]{ TileType.StraightNS, TileType.CornerNW, TileType.StraightWE };
+                    TileType[] mediumWN = new TileType[]{ TileType.StraightWE, TileType.CornerNW, TileType.StraightNS };
+                    
+                    TileType[] mediumNE = new TileType[]{ TileType.StraightNS, TileType.CornerNE, TileType.StraightWE };
+                    TileType[] mediumEN = new TileType[]{ TileType.StraightWE, TileType.CornerNE, TileType.StraightNS };
+
+                    TileType[] mediumSW = new TileType[]{ TileType.StraightNS, TileType.CornerSW, TileType.StraightWE };
+                    TileType[] mediumWS = new TileType[]{ TileType.StraightWE, TileType.CornerSW, TileType.StraightNS };
+
+                    TileType[] mediumSE = new TileType[]{ TileType.StraightNS, TileType.CornerSE, TileType.StraightWE };
+                    TileType[] mediumES = new TileType[]{ TileType.StraightWE, TileType.CornerSE, TileType.StraightNS };
+
+                    Point offsetDir = Move(Move(new Point(0, 0), exitDirection), forwardScan.Item2.direction);
+                    // Debug.LogFormat("{0}", offsetDir);
+                    float offsetX = offsetDir.x * 5f;
+                    float offsetZ = offsetDir.z * 5.0f;
+
+                    if(Enumerable.SequenceEqual(forwardScan.Item1, mediumNW) || Enumerable.SequenceEqual(forwardScan.Item1, mediumWN))
+                    {
+                        isMediumTile = true;
+                        road = Instantiate(roadCornerMediumPrefab, new Vector3(x * gridSize + offsetX, 0.0f, -(z * gridSize + offsetZ)),  Quaternion.Euler(0.0f, 180.0f, 0.0f), this.transform);
+                        road.name = String.Format("{0} ({1}, {2})", "CornerMediumNW", x, z);
+                    }
+                    else if(Enumerable.SequenceEqual(forwardScan.Item1, mediumNE) || Enumerable.SequenceEqual(forwardScan.Item1, mediumEN))
+                    {
+                        isMediumTile = true;
+                        road = Instantiate(roadCornerMediumPrefab, new Vector3(x * gridSize + offsetX, 0.0f, -(z * gridSize + offsetZ)), Quaternion.Euler(0.0f, -90.0f, 0.0f), this.transform);
+                        road.name = String.Format("{0} ({1}, {2})", "CornerMediumNE", x, z);
+                    }
+                    else if(Enumerable.SequenceEqual(forwardScan.Item1, mediumSW) || Enumerable.SequenceEqual(forwardScan.Item1, mediumWS))
+                    {
+                        isMediumTile = true;
+                        road = Instantiate(roadCornerMediumPrefab, new Vector3(x * gridSize + offsetX, 0.0f, -(z * gridSize + offsetZ)), Quaternion.Euler(0.0f, 90.0f, 0.0f), this.transform);
+                        road.name = String.Format("{0} ({1}, {2})", "CornerMediumSW", x, z);
+                    }
+                    else if(Enumerable.SequenceEqual(forwardScan.Item1, mediumSE) || Enumerable.SequenceEqual(forwardScan.Item1, mediumES))
+                    {
+                        isMediumTile = true;
+                        road = Instantiate(roadCornerMediumPrefab, new Vector3(x * gridSize + offsetX, 0.0f, -(z * gridSize + offsetZ)), Quaternion.identity, this.transform);
+                        road.name = String.Format("{0} ({1}, {2})", "CornerMediumSE", x, z);
+                    }
+
+                    if(isMediumTile)
+                    {
+                        current = Move(forwardScan.Item2.point, forwardScan.Item2.direction);
+                        entryDirection = Mirror(forwardScan.Item2.direction);
+                    }
+                }
+            }
+
+            if(!isMediumTile)
+            {
+                // Spawn 1x1 tile
+                SpawnRoadTile(tile, current.x, current.z, gridSize);
+                current = Move(current, exitDirection);
+                entryDirection = Mirror(exitDirection);
+            }
+
+            yield return new WaitForSeconds(0.02f);
         } while(current != start);
 
         // for (int z = 0; z < roadTiles.GetLength(0); z++)
